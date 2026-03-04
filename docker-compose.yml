@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: coldplay-api
+    ports:
+      - "8080:8000"
+    volumes:
+      - ./backend:/var/www/backend
+    command: sh -c "php scripts/init_db.php && php -S 0.0.0.0:8000 -t public"
+
+  frontend:
+    image: nginx:alpine
+    container_name: coldplay-frontend
+    ports:
+      - "5173:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    depends_on:
+      - api
