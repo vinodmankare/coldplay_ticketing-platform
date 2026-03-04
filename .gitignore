@@ -1,0 +1,4 @@
+# Ignore runtime and local artifacts
+backend/storage/*.sqlite
+backend/storage/*.log
+backend/tests/*.sqlite
