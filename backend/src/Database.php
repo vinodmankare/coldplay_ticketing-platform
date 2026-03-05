@@ -1,6 +1,5 @@
 <?php
-// add temporary invalid line in backend/src/Database.php
-this is invalid;
+
 declare(strict_types=1);
 
 namespace App;
