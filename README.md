@@ -14,7 +14,7 @@ This repository provides a backend-heavy prototype to demonstrate booking strate
 
 ### Feedback Loop
 - Booking creates a `pending` email task in `email_outbox`
-- `php backend/scripts/process_outbox.php` marks queued emails as sent and writes to `backend/storage/email.log`
+- `php backend/scripts/process_outbox.php` processes queued emails (real `mail()` transport or log fallback)
 - Docker setup includes a dedicated `worker` service that continuously processes outbox emails
 
 ### Infrastructure
@@ -50,6 +50,16 @@ cd backend
 php scripts/init_db.php
 php -S 127.0.0.1:8080 -t public
 ```
+
+### Worker (optional for local run)
+```bash
+cd backend
+php scripts/worker_loop.php
+```
+
+Email transport options (`backend/.env`):
+- `MAIL_TRANSPORT=log` (default; writes to `backend/storage/email.log`)
+- `MAIL_TRANSPORT=mail` (uses PHP `mail()` and falls back to log on failure)
 
 ### Frontend
 Serve `frontend` with any static server and open `http://localhost:5173`:
