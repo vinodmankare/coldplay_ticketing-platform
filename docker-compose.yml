@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   api:
     build:
@@ -10,7 +8,20 @@ services:
       - "8080:8000"
     volumes:
       - ./backend:/var/www/backend
+    environment:
+      - ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
     command: sh -c "php scripts/init_db.php && php -S 0.0.0.0:8000 -t public"
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: coldplay-worker
+    volumes:
+      - ./backend:/var/www/backend
+    depends_on:
+      - api
+    command: sh -c "php scripts/init_db.php && php scripts/worker_loop.php"
 
   frontend:
     image: nginx:alpine
