@@ -64,7 +64,7 @@ final class BookingService
             return ['status' => 422, 'data' => ['message' => 'user_name contains invalid characters.']];
         }
 
-        if (strlen($userEmail) > self::MAX_EMAIL_LENGTH || !filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
+        if (!$this->isValidEmailAddress($userEmail)) {
             return ['status' => 422, 'data' => ['message' => 'user_email must be a valid email address.']];
         }
 
@@ -222,6 +222,37 @@ final class BookingService
         }
 
         return preg_match('/(?:javascript:|data:text\\/html|<|>|on\\w+\\s*=)/i', $value) === 1;
+    }
+
+    private function isValidEmailAddress(string $email): bool
+    {
+        if (strlen($email) > self::MAX_EMAIL_LENGTH || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return false;
+        }
+
+        $parts = explode('@', $email);
+        if (count($parts) !== 2) {
+            return false;
+        }
+
+        [$localPart, $domain] = $parts;
+        if ($localPart === '' || $domain === '') {
+            return false;
+        }
+
+        // Reject obvious synthetic domains like x.com.com.com where the same
+        // suffix label is repeated multiple times.
+        $labels = explode('.', strtolower($domain));
+        if (count($labels) >= 3) {
+            $last = $labels[count($labels) - 1];
+            $secondLast = $labels[count($labels) - 2];
+            $thirdLast = $labels[count($labels) - 3];
+            if ($last === $secondLast && $secondLast === $thirdLast) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function validateCsrf(array $requestMeta): ?array

@@ -77,6 +77,15 @@ $xssName = $service->book([
 assertTrue($xssName['status'] === 422, 'Input guard should block XSS payload in user_name');
 assertTrue(($xssName['data']['message'] ?? '') === 'user_name contains invalid characters.', 'XSS validation message should be explicit');
 
+$invalidEmailChain = $service->book([
+    'event_id' => 1,
+    'user_name' => 'Chain Domain',
+    'user_email' => 'vinod@gmail.com.com.com.com',
+    'ticket_count' => 1,
+], '127.0.0.1', 'idem-chain-email');
+assertTrue($invalidEmailChain['status'] === 422, 'Should block repeated suffix domain email addresses');
+assertTrue(($invalidEmailChain['data']['message'] ?? '') === 'user_email must be a valid email address.', 'Email validation message should remain consistent');
+
 $xssIdempotency = $service->book([
     'event_id' => 1,
     'user_name' => 'Safe User',
