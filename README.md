@@ -102,6 +102,16 @@ docker compose up --build
 - Frontend: `http://localhost:5173`
 - Worker: background outbox processor (`coldplay-worker`)
 
+## Postman
+- Collection: `docs/postman/Coldplay-Ticketing-API.postman_collection.json`
+- Environment: `docs/postman/Coldplay-Ticketing-Local.postman_environment.json`
+
+Import both into Postman, select `Coldplay Ticketing Local`, then run:
+1. `GET /health`
+2. `GET /api/v1/events`
+3. `POST /api/v1/bookings`
+4. `GET /api/v1/bookings/{id}`
+
 ## API contracts
 
 ### `GET /api/v1/events`
