@@ -1,4 +1,5 @@
 # Coldplay Mumbai Ticketing - Functional Prototype
+![CI](https://github.com/vinodmankare/coldplay_ticketing-platform/actions/workflows/ci.yml/badge.svg)
 
 This repository provides a backend-heavy prototype to demonstrate booking strategy under high demand, while keeping developer onboarding simple.
 
