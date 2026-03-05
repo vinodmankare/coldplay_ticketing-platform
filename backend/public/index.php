@@ -8,8 +8,18 @@ require_once __DIR__ . '/../src/BookingService.php';
 use App\BookingService;
 use App\Database;
 
+$allowedOrigins = array_filter(array_map('trim', explode(',', getenv('ALLOWED_ORIGINS') ?: 'http://localhost:5173,http://127.0.0.1:5173')));
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if ($origin !== '' && in_array($origin, $allowedOrigins, true)) {
+    header('Access-Control-Allow-Origin: '.$origin);
+} else {
+    header('Access-Control-Allow-Origin: '.$allowedOrigins[0]);
+}
+header('Vary: Origin');
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('Referrer-Policy: no-referrer');
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Idempotency-Key');
 

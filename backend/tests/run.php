@@ -60,4 +60,28 @@ assertTrue($overbook['status'] === 422, 'Input guard should block unrealistic ti
 $outboxCount = $pdo->query("SELECT COUNT(*) FROM email_outbox WHERE booking_id = {$ok['data']['booking_id']}")->fetchColumn();
 assertTrue((int) $outboxCount === 1, 'Booking should enqueue one confirmation email');
 
+$pdo->exec('UPDATE events SET available_tickets = 1 WHERE id = 2');
+$soldOut = $service->book([
+    'event_id' => 2,
+    'user_name' => 'Late User',
+    'user_email' => 'late@example.com',
+    'ticket_count' => 2,
+], '127.0.0.1', 'idem-soldout');
+assertTrue($soldOut['status'] === 409, 'Should return conflict when inventory is insufficient');
+
+$rateLimitHit = null;
+for ($i = 0; $i < 40; $i++) {
+    $result = $service->book([
+        'event_id' => 1,
+        'user_name' => 'Burst User '.$i,
+        'user_email' => "burst{$i}@example.com",
+        'ticket_count' => 1,
+    ], '10.10.10.10', 'idem-rate-'.$i);
+    if ($result['status'] === 429) {
+        $rateLimitHit = $result;
+        break;
+    }
+}
+assertTrue(is_array($rateLimitHit) && $rateLimitHit['status'] === 429, 'Rate limit should trigger for burst traffic');
+
 echo "All critical booking tests passed.\n";

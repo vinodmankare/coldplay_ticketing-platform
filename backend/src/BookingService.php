@@ -135,7 +135,7 @@ final class BookingService
                 $this->db->exec('ROLLBACK');
             }
 
-            return ['status' => 500, 'data' => ['message' => 'Booking failed.', 'error' => $e->getMessage()]];
+            return ['status' => 500, 'data' => ['message' => 'Booking failed. Please retry.']];
         }
     }
 
