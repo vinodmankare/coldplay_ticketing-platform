@@ -30,6 +30,11 @@ function App() {
     const trimmedName = form.user_name.trim();
     const trimmedEmail = form.user_email.trim();
     const xssPattern = /(?:<|>|javascript:|on\w+\s*=)/i;
+    const domain = trimmedEmail.split("@")[1] || "";
+    const labels = domain.toLowerCase().split(".");
+    const hasRepeatedSuffix = labels.length >= 3
+      && labels[labels.length - 1] === labels[labels.length - 2]
+      && labels[labels.length - 2] === labels[labels.length - 3];
 
     if (ticketCount < 1 || ticketCount > 6) {
       setStatus({ type: "err", text: "Ticket Count must be between 1 and 6." });
@@ -43,6 +48,11 @@ function App() {
 
     if (xssPattern.test(trimmedName) || xssPattern.test(trimmedEmail)) {
       setStatus({ type: "err", text: "Input contains invalid characters." });
+      return;
+    }
+
+    if (hasRepeatedSuffix) {
+      setStatus({ type: "err", text: "Please enter a valid email address." });
       return;
     }
 
