@@ -3,7 +3,7 @@ import { createRoot } from "https://esm.sh/react-dom@18/client";
 import htm from "https://esm.sh/htm@3.1.1";
 
 const html = htm.bind(React.createElement);
-const API = "http://localhost:8080";
+const API = "http://127.0.0.1:8080";
 
 function App() {
   const [events, setEvents] = useState([]);
@@ -19,7 +19,7 @@ function App() {
           setForm((prev) => ({ ...prev, event_id: String(data.data[0].id) }));
         }
       })
-      .catch(() => setStatus({ type: "err", text: "Failed to load events." }));
+      .catch(() => setStatus({ type: "err", text: "Failed to load events. Ensure API is running at http://127.0.0.1:8080." }));
   }, []);
 
   async function submit(e) {

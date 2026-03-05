@@ -14,9 +14,10 @@ This repository provides a backend-heavy prototype to demonstrate booking strate
 ### Feedback Loop
 - Booking creates a `pending` email task in `email_outbox`
 - `php backend/scripts/process_outbox.php` marks queued emails as sent and writes to `backend/storage/email.log`
+- Docker setup includes a dedicated `worker` service that continuously processes outbox emails
 
 ### Infrastructure
-- Dockerized API + static frontend (`docker-compose up --build`)
+- Dockerized API + worker + static frontend (`docker compose up --build`)
 - Zero external DB dependency: SQLite file-backed storage
 - One-command DB bootstrap at startup
 
@@ -24,7 +25,19 @@ This repository provides a backend-heavy prototype to demonstrate booking strate
 - Input validation and ticket-count limit (`1..6`)
 - Idempotency to avoid duplicate payments/bookings on retries
 - Basic IP rate limit for brute-force traffic dampening
+- Restrictive CORS allow-list + security response headers
 - Critical path tests in `backend/tests/run.php`
+- CI quality gate on push/PR (`.github/workflows/ci.yml`)
+
+## Assignment Coverage Matrix
+
+| Requirement | Prototype coverage |
+|---|---|
+| Booking Logic | Transactional `POST /api/v1/bookings` with inventory checks and oversell prevention |
+| Feedback Loop | Confirmation email outbox + worker processor |
+| Infrastructure | Dockerized API/worker/frontend + simple local run |
+| Quality Gate | Local tests + CI syntax/test checks before merge |
+| Extensibility | Versioned REST API (`/api/v1`) reusable by web/mobile clients |
 
 ## Run locally (without Docker)
 
@@ -32,7 +45,7 @@ This repository provides a backend-heavy prototype to demonstrate booking strate
 ```bash
 cd backend
 php scripts/init_db.php
-php -S 0.0.0.0:8080 -t public
+php -S 127.0.0.1:8080 -t public
 ```
 
 ### Frontend
@@ -42,6 +55,41 @@ cd frontend
 python -m http.server 5173
 ```
 
+Alternative using Node.js:
+```bash
+cd ..
+npx serve frontend -l 5173
+```
+
+Quick API check before opening frontend:
+```bash
+curl http://127.0.0.1:8080/health
+```
+
+## Troubleshooting
+
+- API health check fails (`Unable to connect to the remote server`)
+  - Ensure API terminal is running and left open:
+  - `cd backend`
+  - `php scripts/init_db.php`
+  - `php -S 127.0.0.1:8080 -t public`
+
+- PowerShell `curl` prompt (`Security Warning: Script Execution Risk`)
+  - PowerShell maps `curl` to `Invoke-WebRequest`.
+  - Use:
+  - `curl.exe http://127.0.0.1:8080/health`
+  - or `Invoke-RestMethod http://127.0.0.1:8080/health`
+
+- Frontend shows `Failed to load events`
+  - Confirm API is reachable at `http://127.0.0.1:8080/health`.
+  - Keep frontend and API in separate terminals.
+
+- `npx serve` returns `404 /`
+  - If you are already in `frontend`, run:
+  - `npx serve . -l 5173`
+  - If you are in repo root, run:
+  - `npx serve frontend -l 5173`
+
 ## Run with Docker
 ```bash
 docker compose up --build
@@ -49,6 +97,7 @@ docker compose up --build
 
 - API: `http://localhost:8080`
 - Frontend: `http://localhost:5173`
+- Worker: background outbox processor (`coldplay-worker`)
 
 ## API contracts
 
@@ -64,8 +113,8 @@ Body:
 ```json
 {
   "event_id": 1,
-  "user_name": "Aryan",
-  "user_email": "aryan@example.com",
+  "user_name": "Vinod",
+  "user_email": "vinod@example.com",
   "ticket_count": 2
 }
 ```
@@ -91,17 +140,10 @@ php tests/run.php
 Covers:
 - successful booking and inventory decrement
 - idempotent replay with same key
+- insufficient inventory conflict
 - invalid high ticket quantity rejection
+- burst traffic rate limit behavior
 - email outbox entry creation
-
-## Process & Thought (suggested commit sequence)
-Use sequential commits to show design evolution:
-1. `chore: scaffold php booking service and sqlite schema`
-2. `feat: implement transactional booking with idempotency`
-3. `feat: add frontend booking flow`
-4. `feat: dockerize api and frontend`
-5. `test: add critical-path booking tests`
-6. `docs: add tradeoffs and architecture notes`
 
 ## Tradeoffs
 See `TRADEOFFS.md` for explicit priority decisions.
