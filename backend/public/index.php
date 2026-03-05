@@ -21,7 +21,7 @@ header('X-Frame-Options: DENY');
 header('Referrer-Policy: no-referrer');
 header('Content-Type: application/json');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Idempotency-Key');
+header('Access-Control-Allow-Headers: Content-Type, Idempotency-Key, X-CSRF-Token');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
@@ -66,7 +66,12 @@ if ($method === 'POST' && $uri === '/api/v1/bookings') {
 
     $idem = $_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? null;
     $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
-    $result = $service->book($payload, $ip, $idem ?: null);
+    $requestMeta = [
+        'origin' => $_SERVER['HTTP_ORIGIN'] ?? '',
+        'sec_fetch_site' => $_SERVER['HTTP_SEC_FETCH_SITE'] ?? '',
+        'csrf_token' => $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '',
+    ];
+    $result = $service->book($payload, $ip, $idem ?: null, $requestMeta);
 
     respond($result['status'], $result['data']);
 }

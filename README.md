@@ -25,8 +25,9 @@ This repository provides a backend-heavy prototype to demonstrate booking strate
 ### Security & Quality
 - Input validation and ticket-count limit (`1..6`)
 - XSS-oriented input hardening (reject HTML/script payloads in user input)
+- CSRF protection for browser-origin booking requests (`X-CSRF-Token` + origin checks)
 - Idempotency to avoid duplicate payments/bookings on retries
-- Basic IP rate limit for brute-force traffic dampening
+- DDoS dampening via per-IP and global burst rate limits
 - Restrictive CORS allow-list + security response headers
 - Critical path tests in `backend/tests/run.php`
 - CI quality gate on push/PR (`.github/workflows/ci.yml`)
@@ -110,6 +111,7 @@ Returns event inventory snapshot.
 Headers:
 - `Content-Type: application/json`
 - `Idempotency-Key: <unique-value>` (recommended)
+- `X-CSRF-Token: local-dev-csrf-token` (required for browser requests)
 
 Body:
 ```json

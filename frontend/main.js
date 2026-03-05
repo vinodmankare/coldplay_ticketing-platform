@@ -4,6 +4,7 @@ import htm from "https://esm.sh/htm@3.1.1";
 
 const html = htm.bind(React.createElement);
 const API = "http://127.0.0.1:8080";
+const CSRF_TOKEN = "local-dev-csrf-token";
 
 function App() {
   const [events, setEvents] = useState([]);
@@ -52,6 +53,7 @@ function App() {
       headers: {
         "Content-Type": "application/json",
         "Idempotency-Key": idempotencyKey,
+        "X-CSRF-Token": CSRF_TOKEN,
       },
       body: JSON.stringify({
         event_id: Number(form.event_id),

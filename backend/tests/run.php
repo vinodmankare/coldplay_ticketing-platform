@@ -86,6 +86,19 @@ $xssIdempotency = $service->book([
 assertTrue($xssIdempotency['status'] === 422, 'Input guard should block invalid Idempotency-Key payload');
 assertTrue(($xssIdempotency['data']['message'] ?? '') === 'Idempotency-Key format is invalid.', 'Idempotency validation message should be explicit');
 
+$csrfBlocked = $service->book([
+    'event_id' => 1,
+    'user_name' => 'Browser User',
+    'user_email' => 'browser@example.com',
+    'ticket_count' => 1,
+], '127.0.0.1', 'idem-csrf-bad', [
+    'origin' => 'http://127.0.0.1:5173',
+    'sec_fetch_site' => 'same-site',
+    'csrf_token' => 'wrong-token',
+]);
+assertTrue($csrfBlocked['status'] === 403, 'CSRF validation should block invalid token');
+assertTrue(($csrfBlocked['data']['message'] ?? '') === 'CSRF validation failed.', 'CSRF validation message should be explicit');
+
 $outboxCount = $pdo->query("SELECT COUNT(*) FROM email_outbox WHERE booking_id = {$ok['data']['booking_id']}")->fetchColumn();
 assertTrue((int) $outboxCount === 1, 'Booking should enqueue one confirmation email');
 
@@ -112,5 +125,22 @@ for ($i = 0; $i < 40; $i++) {
     }
 }
 assertTrue(is_array($rateLimitHit) && $rateLimitHit['status'] === 429, 'Rate limit should trigger for burst traffic');
+
+$globalLimitHit = null;
+putenv('RATE_LIMIT_MAX_PER_IP=1000');
+putenv('RATE_LIMIT_GLOBAL_MAX=6');
+for ($i = 0; $i < 20; $i++) {
+    $result = $service->book([
+        'event_id' => 1,
+        'user_name' => 'Global Burst '.$i,
+        'user_email' => "global{$i}@example.com",
+        'ticket_count' => 1,
+    ], '172.20.0.'.$i, 'idem-global-'.$i);
+    if ($result['status'] === 503) {
+        $globalLimitHit = $result;
+        break;
+    }
+}
+assertTrue(is_array($globalLimitHit) && $globalLimitHit['status'] === 503, 'Global DDoS guard should trigger under total burst traffic');
 
 echo "All critical booking tests passed.\n";

@@ -14,6 +14,9 @@ final class BookingService
     private const MAX_USER_NAME_LENGTH = 80;
     private const MAX_EMAIL_LENGTH = 254;
     private const IDEMPOTENCY_KEY_PATTERN = '/^[A-Za-z0-9._:-]{1,80}$/';
+    private const DEFAULT_RATE_WINDOW_SECONDS = 60;
+    private const DEFAULT_MAX_PER_IP_PER_WINDOW = 25;
+    private const DEFAULT_GLOBAL_MAX_PER_WINDOW = 500;
 
     public function __construct(private readonly PDO $db)
     {
@@ -33,8 +36,13 @@ final class BookingService
         return $booking ?: null;
     }
 
-    public function book(array $payload, string $ip, ?string $idempotencyKey): array
+    public function book(array $payload, string $ip, ?string $idempotencyKey, array $requestMeta = []): array
     {
+        $csrfCheck = $this->validateCsrf($requestMeta);
+        if ($csrfCheck !== null) {
+            return $csrfCheck;
+        }
+
         $eventId = (int) ($payload['event_id'] ?? 0);
         $userName = trim((string) ($payload['user_name'] ?? ''));
         $userEmail = trim((string) ($payload['user_email'] ?? ''));
@@ -64,7 +72,11 @@ final class BookingService
             return ['status' => 422, 'data' => ['message' => 'user_email contains invalid characters.']];
         }
 
-        if (!$this->allowRequest($ip)) {
+        $rateLimitStatus = $this->allowRequest($ip);
+        if ($rateLimitStatus === 'global') {
+            return ['status' => 503, 'data' => ['message' => 'High demand detected. Please retry in a moment.']];
+        }
+        if ($rateLimitStatus === 'ip') {
             return ['status' => 429, 'data' => ['message' => 'Too many requests. Please retry shortly.']];
         }
 
@@ -164,26 +176,34 @@ final class BookingService
         }
     }
 
-    private function allowRequest(string $ip): bool
+    private function allowRequest(string $ip): string
     {
-        $windowSeconds = 60;
-        $maxPerWindow = 25;
+        $windowSeconds = max(1, (int) (getenv('RATE_LIMIT_WINDOW_SECONDS') ?: self::DEFAULT_RATE_WINDOW_SECONDS));
+        $maxPerIpPerWindow = max(1, (int) (getenv('RATE_LIMIT_MAX_PER_IP') ?: self::DEFAULT_MAX_PER_IP_PER_WINDOW));
+        $globalMaxPerWindow = max(1, (int) (getenv('RATE_LIMIT_GLOBAL_MAX') ?: self::DEFAULT_GLOBAL_MAX_PER_WINDOW));
         $windowStart = time() - $windowSeconds;
 
         $this->db->prepare('DELETE FROM rate_limits WHERE ts < :window_start')->execute([':window_start' => $windowStart]);
+
+        $globalCountStmt = $this->db->prepare('SELECT COUNT(*) FROM rate_limits WHERE ts >= :window_start');
+        $globalCountStmt->execute([':window_start' => $windowStart]);
+        $globalCount = (int) $globalCountStmt->fetchColumn();
+        if ($globalCount >= $globalMaxPerWindow) {
+            return 'global';
+        }
 
         $countStmt = $this->db->prepare('SELECT COUNT(*) FROM rate_limits WHERE ip = :ip AND ts >= :window_start');
         $countStmt->execute([':ip' => $ip, ':window_start' => $windowStart]);
         $count = (int) $countStmt->fetchColumn();
 
-        if ($count >= $maxPerWindow) {
-            return false;
+        if ($count >= $maxPerIpPerWindow) {
+            return 'ip';
         }
 
         $insert = $this->db->prepare('INSERT INTO rate_limits (ip, ts) VALUES (:ip, :ts)');
         $insert->execute([':ip' => $ip, ':ts' => time()]);
 
-        return true;
+        return 'ok';
     }
 
     private function containsXssPayload(string $value): bool
@@ -202,5 +222,33 @@ final class BookingService
         }
 
         return preg_match('/(?:javascript:|data:text\\/html|<|>|on\\w+\\s*=)/i', $value) === 1;
+    }
+
+    private function validateCsrf(array $requestMeta): ?array
+    {
+        $origin = trim((string) ($requestMeta['origin'] ?? ''));
+        $secFetchSite = strtolower(trim((string) ($requestMeta['sec_fetch_site'] ?? '')));
+        $csrfToken = trim((string) ($requestMeta['csrf_token'] ?? ''));
+
+        // Non-browser or internal calls (tests/worker/mobile) may omit browser headers.
+        if ($origin === '' && $secFetchSite === '') {
+            return null;
+        }
+
+        $allowedOrigins = array_filter(array_map('trim', explode(',', getenv('ALLOWED_ORIGINS') ?: 'http://localhost:5173,http://127.0.0.1:5173')));
+        if ($origin !== '' && !in_array($origin, $allowedOrigins, true)) {
+            return ['status' => 403, 'data' => ['message' => 'Origin is not allowed.']];
+        }
+
+        // Do not hard-block on sec-fetch-site for local dev because
+        // localhost and 127.0.0.1 are treated as cross-site.
+        // Origin allow-list + CSRF token validation remain mandatory.
+
+        $expectedCsrfToken = trim((string) (getenv('CSRF_TOKEN') ?: 'local-dev-csrf-token'));
+        if ($expectedCsrfToken !== '' && !hash_equals($expectedCsrfToken, $csrfToken)) {
+            return ['status' => 403, 'data' => ['message' => 'CSRF validation failed.']];
+        }
+
+        return null;
     }
 }

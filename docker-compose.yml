@@ -10,6 +10,10 @@ services:
       - ./backend:/var/www/backend
     environment:
       - ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+      - CSRF_TOKEN=local-dev-csrf-token
+      - RATE_LIMIT_WINDOW_SECONDS=60
+      - RATE_LIMIT_MAX_PER_IP=25
+      - RATE_LIMIT_GLOBAL_MAX=500
     command: sh -c "php scripts/init_db.php && php -S 0.0.0.0:8000 -t public"
 
   worker:
