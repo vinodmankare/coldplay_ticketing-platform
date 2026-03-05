@@ -56,6 +56,35 @@ $overbook = $service->book([
 ], '127.0.0.1', 'idem-overbook');
 
 assertTrue($overbook['status'] === 422, 'Input guard should block unrealistic ticket_count > 6');
+assertTrue(($overbook['data']['message'] ?? '') === 'ticket_count must be between 1 and 6.', 'Ticket-count validation message should be explicit');
+
+$longName = str_repeat('A', 81);
+$invalidName = $service->book([
+    'event_id' => 1,
+    'user_name' => $longName,
+    'user_email' => 'longname@example.com',
+    'ticket_count' => 1,
+], '127.0.0.1', 'idem-long-name');
+assertTrue($invalidName['status'] === 422, 'Input guard should block very long user_name');
+assertTrue(($invalidName['data']['message'] ?? '') === 'user_name is required and must be at most 80 characters.', 'Name-length validation message should be explicit');
+
+$xssName = $service->book([
+    'event_id' => 1,
+    'user_name' => '<script>alert(1)</script>',
+    'user_email' => 'safe@example.com',
+    'ticket_count' => 1,
+], '127.0.0.1', 'idem-xss-name');
+assertTrue($xssName['status'] === 422, 'Input guard should block XSS payload in user_name');
+assertTrue(($xssName['data']['message'] ?? '') === 'user_name contains invalid characters.', 'XSS validation message should be explicit');
+
+$xssIdempotency = $service->book([
+    'event_id' => 1,
+    'user_name' => 'Safe User',
+    'user_email' => 'safe2@example.com',
+    'ticket_count' => 1,
+], '127.0.0.1', '<svg onload=alert(1)>');
+assertTrue($xssIdempotency['status'] === 422, 'Input guard should block invalid Idempotency-Key payload');
+assertTrue(($xssIdempotency['data']['message'] ?? '') === 'Idempotency-Key format is invalid.', 'Idempotency validation message should be explicit');
 
 $outboxCount = $pdo->query("SELECT COUNT(*) FROM email_outbox WHERE booking_id = {$ok['data']['booking_id']}")->fetchColumn();
 assertTrue((int) $outboxCount === 1, 'Booking should enqueue one confirmation email');

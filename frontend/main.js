@@ -25,6 +25,25 @@ function App() {
   async function submit(e) {
     e.preventDefault();
     setStatus({ type: "", text: "" });
+    const ticketCount = Number(form.ticket_count);
+    const trimmedName = form.user_name.trim();
+    const trimmedEmail = form.user_email.trim();
+    const xssPattern = /(?:<|>|javascript:|on\w+\s*=)/i;
+
+    if (ticketCount < 1 || ticketCount > 6) {
+      setStatus({ type: "err", text: "Ticket Count must be between 1 and 6." });
+      return;
+    }
+
+    if (!trimmedName || trimmedName.length > 80) {
+      setStatus({ type: "err", text: "Your Name must be between 1 and 80 characters." });
+      return;
+    }
+
+    if (xssPattern.test(trimmedName) || xssPattern.test(trimmedEmail)) {
+      setStatus({ type: "err", text: "Input contains invalid characters." });
+      return;
+    }
 
     const idempotencyKey = crypto.randomUUID();
 
@@ -36,9 +55,9 @@ function App() {
       },
       body: JSON.stringify({
         event_id: Number(form.event_id),
-        user_name: form.user_name,
-        user_email: form.user_email,
-        ticket_count: Number(form.ticket_count),
+        user_name: trimmedName,
+        user_email: trimmedEmail,
+        ticket_count: ticketCount,
       }),
     });
 
@@ -86,11 +105,11 @@ function App() {
           </label>
           <label>
             Your Name
-            <input type="text" value=${form.user_name} onChange=${(e) => setForm({ ...form, user_name: e.target.value })} required />
+            <input type="text" maxLength="80" value=${form.user_name} onChange=${(e) => setForm({ ...form, user_name: e.target.value })} required />
           </label>
           <label>
             Your Email
-            <input type="email" value=${form.user_email} onChange=${(e) => setForm({ ...form, user_email: e.target.value })} required />
+            <input type="email" maxLength="254" value=${form.user_email} onChange=${(e) => setForm({ ...form, user_email: e.target.value })} required />
           </label>
         </div>
         <p><button type="submit">Confirm Booking</button></p>

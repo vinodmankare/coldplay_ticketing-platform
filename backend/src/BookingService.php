@@ -10,6 +10,11 @@ use Throwable;
 
 final class BookingService
 {
+    private const MAX_TICKETS_PER_BOOKING = 6;
+    private const MAX_USER_NAME_LENGTH = 80;
+    private const MAX_EMAIL_LENGTH = 254;
+    private const IDEMPOTENCY_KEY_PATTERN = '/^[A-Za-z0-9._:-]{1,80}$/';
+
     public function __construct(private readonly PDO $db)
     {
     }
@@ -35,16 +40,36 @@ final class BookingService
         $userEmail = trim((string) ($payload['user_email'] ?? ''));
         $ticketCount = (int) ($payload['ticket_count'] ?? 0);
 
-        if ($eventId <= 0 || $ticketCount <= 0 || $ticketCount > 6 || $userName === '' || !filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
-            return ['status' => 422, 'data' => ['message' => 'Invalid input.']];
+        if ($eventId <= 0) {
+            return ['status' => 422, 'data' => ['message' => 'event_id is required and must be valid.']];
+        }
+
+        if ($ticketCount <= 0 || $ticketCount > self::MAX_TICKETS_PER_BOOKING) {
+            return ['status' => 422, 'data' => ['message' => 'ticket_count must be between 1 and '.self::MAX_TICKETS_PER_BOOKING.'.']];
+        }
+
+        if ($userName === '' || strlen($userName) > self::MAX_USER_NAME_LENGTH) {
+            return ['status' => 422, 'data' => ['message' => 'user_name is required and must be at most '.self::MAX_USER_NAME_LENGTH.' characters.']];
+        }
+
+        if ($this->containsXssPayload($userName)) {
+            return ['status' => 422, 'data' => ['message' => 'user_name contains invalid characters.']];
+        }
+
+        if (strlen($userEmail) > self::MAX_EMAIL_LENGTH || !filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
+            return ['status' => 422, 'data' => ['message' => 'user_email must be a valid email address.']];
+        }
+
+        if ($this->containsXssPayload($userEmail)) {
+            return ['status' => 422, 'data' => ['message' => 'user_email contains invalid characters.']];
         }
 
         if (!$this->allowRequest($ip)) {
             return ['status' => 429, 'data' => ['message' => 'Too many requests. Please retry shortly.']];
         }
 
-        if ($idempotencyKey !== null && strlen($idempotencyKey) > 80) {
-            return ['status' => 422, 'data' => ['message' => 'Idempotency-Key is too long.']];
+        if ($idempotencyKey !== null && !preg_match(self::IDEMPOTENCY_KEY_PATTERN, $idempotencyKey)) {
+            return ['status' => 422, 'data' => ['message' => 'Idempotency-Key format is invalid.']];
         }
 
         try {
@@ -159,5 +184,23 @@ final class BookingService
         $insert->execute([':ip' => $ip, ':ts' => time()]);
 
         return true;
+    }
+
+    private function containsXssPayload(string $value): bool
+    {
+        if ($value === '') {
+            return false;
+        }
+
+        // Reject HTML/script-like and control-character payloads at API boundary.
+        if ($value !== strip_tags($value)) {
+            return true;
+        }
+
+        if (preg_match('/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]/', $value) === 1) {
+            return true;
+        }
+
+        return preg_match('/(?:javascript:|data:text\\/html|<|>|on\\w+\\s*=)/i', $value) === 1;
     }
 }

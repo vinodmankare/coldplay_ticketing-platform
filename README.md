@@ -24,6 +24,7 @@ This repository provides a backend-heavy prototype to demonstrate booking strate
 
 ### Security & Quality
 - Input validation and ticket-count limit (`1..6`)
+- XSS-oriented input hardening (reject HTML/script payloads in user input)
 - Idempotency to avoid duplicate payments/bookings on retries
 - Basic IP rate limit for brute-force traffic dampening
 - Restrictive CORS allow-list + security response headers
